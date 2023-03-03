@@ -9,6 +9,7 @@
 
 问：这玩意怎么用？ 
 答：好问题。 
+将代码下载下来，打成 jar 包直接导入即可。
 SJdbc 共有两种使用方法，一种是基于 QueryModel 的拼装 sql
 ![image](https://user-images.githubusercontent.com/53511645/222676442-593d5fda-4e33-4ac3-a0fc-ee8f0afcb33a.png)
 如图所示，使用 QueryModel 拼装 Sql，使用起来与你在 navicat 里面写 sql 是一样的思维。示例中的拼装的 sql语句等效 SELECT * FROM table WHERE id = 1 
