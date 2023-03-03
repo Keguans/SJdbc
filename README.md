@@ -26,7 +26,7 @@ SJdbc 共有两种使用方法，一种是基于 QueryModel 的拼装 sql
 
 问：这怎么会提示找不到 bean 呢？
 答：因为你写的 mapper 只定义了接口，实现类是动态生成的，idea若是没有插件支持，当然会提示这个信息。不耽误使用。
-![image](https://user-images.githubusercontent.com/53511645/222679297-b008aa7b-41cf-44ef-b896-461b9f207f5a.png)
+![image](https://user-images.githubusercontent.com/53511645/222679779-6398a08a-7a65-4fa4-829f-30f3a367c05b.png)
 
 问：可以指定多个 mapper 包吗？
 答：当然可以。
