@@ -166,7 +166,7 @@ public class JdbcUtil {
                 queryModel.sql.indexOf(SqlEnum.SELECT.getWord()) + SqlEnum.SELECT.getWord().length(),
                 queryModel.sql.indexOf(SqlEnum.FROM.getWord())
         );
-        String sql = queryModel.sql.toString().replace(substring, " " + SqlEnum.COUNT + "(1) ");
+        String sql = queryModel.sql.toString().replaceFirst(substring, " " + SqlEnum.COUNT + "(1) ");
         Long count = jdbcTemplate.queryForObject(sql, Long.class);
         if (Objects.isNull(count) || count == 0) {
             return new Paging<>(0L, new ArrayList<>(0));

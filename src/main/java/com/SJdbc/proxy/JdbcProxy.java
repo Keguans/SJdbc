@@ -2,6 +2,7 @@ package com.SJdbc.proxy;
 
 import com.SJdbc.annotation.Param;
 import com.SJdbc.annotation.Sql;
+import com.SJdbc.config.SpringContextHolder;
 import com.SJdbc.enums.SqlEnum;
 import com.SJdbc.util.JdbcUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -13,20 +14,11 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class JdbcProxy implements InvocationHandler {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
-
-    private final JdbcTemplate jdbcTemplate;
-
-    public JdbcProxy(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
-    }
 
     @Override
     @SuppressWarnings(value = "all")
@@ -106,6 +98,7 @@ public class JdbcProxy implements InvocationHandler {
      * @throws ClassNotFoundException
      */
     private Object doSql(String sqlStr, Method method) throws ClassNotFoundException {
+        JdbcTemplate jdbcTemplate = SpringContextHolder.getBean(JdbcTemplate.class);
         if (sqlStr.startsWith(SqlEnum.SELECT.getWord())) {
             if (List.class.isAssignableFrom(method.getReturnType())) {
                 Type genericReturnType = method.getGenericReturnType();

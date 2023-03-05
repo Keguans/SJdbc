@@ -1,9 +1,7 @@
 package com.SJdbc.config;
 
 import com.SJdbc.proxy.JdbcProxy;
-import com.SJdbc.util.JdbcUtil;
 import org.springframework.beans.factory.FactoryBean;
-import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.lang.reflect.Proxy;
 
@@ -23,11 +21,10 @@ public class JdbcFactoryBean<T> implements FactoryBean<T> {
     @Override
     @SuppressWarnings(value = "all")
     public T getObject() throws Exception {
-        JdbcTemplate jdbcTemplate = SpringContextHolder.getBean(JdbcTemplate.class);
         return (T) Proxy.newProxyInstance(
                 aClass.getClassLoader(),
                 new Class[]{aClass},
-                new JdbcProxy(jdbcTemplate)
+                new JdbcProxy()
         );
     }
 
