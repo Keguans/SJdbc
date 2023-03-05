@@ -9,8 +9,8 @@
   
 问：那这破玩意怎么用？  
 答：（面部肌肉微微颤抖）好问题！  
-首先把依赖下载一下：链接: https://pan.baidu.com/s/11Izgnx1dZz1jqhZ5Cs8-mw?pwd=ph23  
-导入到你的项目中。首先你需要配置一下 JdbcUtil 这个 bean  
+首先把依赖下载一下：链接: https://pan.baidu.com/s/16rjFEDyH_6iOTWBHWJqv4w?pwd=7hge
+导入到你的项目中。首先你需要配置一下 JdbcTemplate
 <h1> 配置 JdbcUtil </h1>
   
     @Bean
@@ -22,17 +22,6 @@
     @Bean
     public JdbcTemplate jdbcTemplate(DataSource dataSource) {
         return new JdbcTemplate(dataSource);
-    }
- 
-    /**
-     * jdbcUtil
-     * 
-     * @param jdbcTemplate
-     * @return
-     */
-    @Bean
-    public JdbcUtil jdbcUtil(JdbcTemplate jdbcTemplate) {
-        return new JdbcUtil(jdbcTemplate);
     }
     
 然后创建你的实体类
