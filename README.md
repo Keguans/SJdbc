@@ -11,7 +11,7 @@
 答：（面部肌肉微微颤抖）好问题！  
 首先把依赖下载一下：链接: https://pan.baidu.com/s/16rjFEDyH_6iOTWBHWJqv4w?pwd=7hge
 导入到你的项目中。  
-首先你需要配置一下 JdbcTemplate
+你需要配置一下 JdbcTemplate
 <h1> 配置 JdbcUtil </h1>
   
     @Bean
