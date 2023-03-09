@@ -9,7 +9,7 @@
   
 问：那这破玩意怎么用？  
 答：（面部肌肉微微颤抖）好问题！  
-首先把依赖下载一下：链接: https://pan.baidu.com/s/16rjFEDyH_6iOTWBHWJqv4w?pwd=7hge
+首先把依赖下载一下：链接: https://pan.baidu.com/s/1cd8DhZXDQbZTl3AVE4d7Ow?pwd=1234
 导入到你的项目中。  
 你需要配置一下 JdbcTemplate
 <h1> 配置 JdbcUtil </h1>
