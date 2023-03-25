@@ -1,3 +1,4 @@
 org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
 com.SJdbc.config.SpringContextHolder,\
-com.SJdbc.util.JdbcUtil
+com.SJdbc.util.JdbcUtil,\
+com.SJdbc.logo.Logo

@@ -7,6 +7,7 @@ import com.SJdbc.enums.SqlEnum;
 import com.SJdbc.util.JdbcUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -99,7 +100,7 @@ public class JdbcProxy implements InvocationHandler {
      */
     private Object doSql(String sqlStr, Method method) throws ClassNotFoundException {
         JdbcTemplate jdbcTemplate = SpringContextHolder.getBean(JdbcTemplate.class);
-        if (sqlStr.startsWith(SqlEnum.SELECT.getWord())) {
+        if (sqlStr.toUpperCase().startsWith(SqlEnum.SELECT.getWord())) {
             if (List.class.isAssignableFrom(method.getReturnType())) {
                 Type genericReturnType = method.getGenericReturnType();
                 String typeName = genericReturnType.getTypeName();
@@ -109,7 +110,11 @@ public class JdbcProxy implements InvocationHandler {
             if (Map.class.isAssignableFrom(method.getReturnType())) {
                 return jdbcTemplate.queryForMap(sqlStr);
             }
-            return jdbcTemplate.queryForObject(sqlStr, new BeanPropertyRowMapper<>(method.getReturnType()));
+            try {
+                return jdbcTemplate.queryForObject(sqlStr, new BeanPropertyRowMapper<>(method.getReturnType()));
+            } catch (EmptyResultDataAccessException e) {
+                return null;
+            }
         }
         return jdbcTemplate.update(sqlStr);
     }
