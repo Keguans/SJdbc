@@ -1,9 +1,13 @@
 package com.SJdbc.proxy;
 
+import com.SJdbc.annotation.Cache;
 import com.SJdbc.annotation.Param;
 import com.SJdbc.annotation.Sql;
 import com.SJdbc.config.SpringContextHolder;
 import com.SJdbc.enums.SqlEnum;
+import com.SJdbc.executor.cache.CacheExecutor;
+import com.SJdbc.executor.cache.impl.DefaultCacheExecutor;
+import com.SJdbc.executor.impl.DbExecutor;
 import com.SJdbc.util.JdbcUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -17,29 +21,69 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 import java.util.*;
 
-public class JdbcProxy implements InvocationHandler {
+public class JdbcProxy extends DbExecutor implements InvocationHandler {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    private CacheExecutor cacheExecutor = null;
 
     @Override
     @SuppressWarnings(value = "all")
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
         Sql sql = method.getAnnotation(Sql.class);
-        if (sql.type() == 1) {
-            return this.typeOne(sql.sql(), method, args);
-        } else {
-            return this.typeTwo(sql.sql(), method, args);
+        String sqlStr = sql.type() == 1 ? this.typeOne(sql.sql(), args) : this.typeTwo(sql.sql(), method, args);
+        // 查询方法
+        if (sqlStr.toUpperCase().startsWith(SqlEnum.SELECT.getWord())) {
+            Cache annotation = method.getDeclaringClass().getAnnotation(Cache.class);
+            CacheExecutor executor = this.setCacheExecutor(annotation);
+            // 如果未设置缓存，查询数据库
+            if (executor instanceof DbExecutor) {
+                return executor.getData(new DbExecutorKey(sqlStr, method));
+            }
+            // 查询缓存
+            Object data = executor.getData(sqlStr);
+            if (Objects.isNull(data)) {
+                // 缓存没有，查询数据库
+                data = this.doGetData(sqlStr, method);
+                executor.setData(sqlStr, data);
+            }
+            return data;
+        }
+        // 非查询 sql
+        return this.doUpdate(sqlStr);
+    }
+
+    /**
+     * get CacheExecutor
+     *
+     * @param annotation
+     * @return
+     */
+    private CacheExecutor setCacheExecutor(Cache annotation) {
+        if (Objects.nonNull(this.cacheExecutor)) {
+            return this.cacheExecutor;
+        }
+        synchronized (this) {
+            if (Objects.isNull(this.cacheExecutor)) {
+                if (Objects.isNull(annotation)) {
+                    cacheExecutor = this;
+                } else {
+                    cacheExecutor = annotation.exec().equals(DefaultCacheExecutor.class) ?
+                            new DefaultCacheExecutor(annotation.expireTime()) :
+                            (CacheExecutor) SpringContextHolder.getBean(annotation.exec());
+                }
+            }
+            return cacheExecutor;
         }
     }
 
     /**
      * 入参类型 1
      *
-     * @param method
      * @param args
      * @return
      */
-    public Object typeOne(String sqlStr, Method method, Object[] args) throws Throwable {
+    public String typeOne(String sqlStr, Object[] args) throws Throwable {
         for (int i = 1; i <= args.length; i++) {
             Object arg = args[i - 1];
             Object convert = JdbcUtil.convert(arg);
@@ -50,7 +94,7 @@ public class JdbcProxy implements InvocationHandler {
             }
             sqlStr = sqlStr.replace("?" + i, String.valueOf(convert));
         }
-        return this.doSql(sqlStr, method);
+        return sqlStr;
     }
 
     /**
@@ -62,7 +106,7 @@ public class JdbcProxy implements InvocationHandler {
      * @return
      * @throws Exception
      */
-    public Object typeTwo(String sqlStr, Method method, Object[] args) throws Exception {
+    public String typeTwo(String sqlStr, Method method, Object[] args) throws Exception {
         sqlStr = sqlStr.trim();
         for (int i = 0; i < method.getParameterTypes().length; i++) {
             Annotation[] parameterAnnotation = method.getParameterAnnotations()[i];
@@ -87,7 +131,7 @@ public class JdbcProxy implements InvocationHandler {
                 sqlStr = sqlStr.replace(substring, String.valueOf(convert));
             }
         }
-        return this.doSql(sqlStr, method);
+        return sqlStr;
     }
 
     /**
@@ -96,26 +140,38 @@ public class JdbcProxy implements InvocationHandler {
      * @param sqlStr
      * @param method
      * @return
-     * @throws ClassNotFoundException
      */
-    private Object doSql(String sqlStr, Method method) throws ClassNotFoundException {
+    @Override
+    protected Object doGetData(String sqlStr, Method method) throws ClassNotFoundException {
         JdbcTemplate jdbcTemplate = SpringContextHolder.getBean(JdbcTemplate.class);
-        if (sqlStr.toUpperCase().startsWith(SqlEnum.SELECT.getWord())) {
-            if (List.class.isAssignableFrom(method.getReturnType())) {
-                Type genericReturnType = method.getGenericReturnType();
-                String typeName = genericReturnType.getTypeName();
-                Class<?> aClass = Class.forName(typeName.substring(typeName.indexOf("<") + 1, typeName.indexOf(">")));
-                return jdbcTemplate.query(sqlStr, new BeanPropertyRowMapper<>(aClass));
-            }
-            if (Map.class.isAssignableFrom(method.getReturnType())) {
-                return jdbcTemplate.queryForMap(sqlStr);
-            }
-            try {
-                return jdbcTemplate.queryForObject(sqlStr, new BeanPropertyRowMapper<>(method.getReturnType()));
-            } catch (EmptyResultDataAccessException e) {
-                return null;
-            }
+        if (List.class.isAssignableFrom(method.getReturnType())) {
+            Type genericReturnType = method.getGenericReturnType();
+            String typeName = genericReturnType.getTypeName();
+            Class<?> aClass = Class.forName(typeName.substring(typeName.indexOf("<") + 1, typeName.indexOf(">")));
+            return jdbcTemplate.query(sqlStr, new BeanPropertyRowMapper<>(aClass));
         }
-        return jdbcTemplate.update(sqlStr);
+        if (Map.class.isAssignableFrom(method.getReturnType())) {
+            return jdbcTemplate.queryForMap(sqlStr);
+        }
+        try {
+            return jdbcTemplate.queryForObject(sqlStr, new BeanPropertyRowMapper<>(method.getReturnType()));
+        } catch (EmptyResultDataAccessException e) {
+            return null;
+        }
+    }
+
+    /**
+     * 执行非查询 sql
+     *
+     * @param sqlStr
+     * @return
+     */
+    private Object doUpdate(String sqlStr) {
+        // 执行 sql
+        JdbcTemplate jdbcTemplate = SpringContextHolder.getBean(JdbcTemplate.class);
+        int count = jdbcTemplate.update(sqlStr);
+        // 清空缓存
+        cacheExecutor.clear(sqlStr);
+        return count;
     }
 }
