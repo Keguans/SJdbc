@@ -1,5 +1,6 @@
 package com.SJdbc.proxy;
 
+import cn.hutool.crypto.digest.MD5;
 import com.SJdbc.annotation.Cache;
 import com.SJdbc.annotation.Param;
 import com.SJdbc.annotation.Sql;
@@ -41,11 +42,12 @@ public class JdbcProxy extends DbExecutor implements InvocationHandler {
                 return executor.getData(new DbExecutorKey(sqlStr, method));
             }
             // 查询缓存
-            Object data = executor.getData(sqlStr);
+            String key = this.getKey(sqlStr, method);
+            Object data = executor.getData(key);
             if (Objects.isNull(data)) {
                 // 缓存没有，查询数据库
                 data = this.doGetData(sqlStr, method);
-                executor.setData(sqlStr, data);
+                executor.setData(key, data);
             }
             return data;
         }
@@ -75,6 +77,17 @@ public class JdbcProxy extends DbExecutor implements InvocationHandler {
             }
             return cacheExecutor;
         }
+    }
+
+    /**
+     * get cache key
+     *
+     * @param sqlStr
+     * @param method
+     * @return
+     */
+    private String getKey(String sqlStr, Method method) {
+        return MD5.create().digestHex(method.getDeclaringClass() + ":" + method.getName() + ":" + method.getReturnType() + ":" + sqlStr);
     }
 
     /**
@@ -150,10 +163,10 @@ public class JdbcProxy extends DbExecutor implements InvocationHandler {
             Class<?> aClass = Class.forName(typeName.substring(typeName.indexOf("<") + 1, typeName.indexOf(">")));
             return jdbcTemplate.query(sqlStr, new BeanPropertyRowMapper<>(aClass));
         }
-        if (Map.class.isAssignableFrom(method.getReturnType())) {
-            return jdbcTemplate.queryForMap(sqlStr);
-        }
         try {
+            if (Map.class.isAssignableFrom(method.getReturnType())) {
+                return jdbcTemplate.queryForMap(sqlStr);
+            }
             return jdbcTemplate.queryForObject(sqlStr, new BeanPropertyRowMapper<>(method.getReturnType()));
         } catch (EmptyResultDataAccessException e) {
             return null;
