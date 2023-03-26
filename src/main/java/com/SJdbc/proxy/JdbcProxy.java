@@ -52,7 +52,7 @@ public class JdbcProxy extends DbExecutor implements InvocationHandler {
             return data;
         }
         // 非查询 sql
-        return this.doUpdate(sqlStr);
+        return this.doUpdate(sqlStr, method.getReturnType());
     }
 
     /**
@@ -179,12 +179,18 @@ public class JdbcProxy extends DbExecutor implements InvocationHandler {
      * @param sqlStr
      * @return
      */
-    private Object doUpdate(String sqlStr) {
-        // 执行 sql
+    private Object doUpdate(String sqlStr, Class<?> returnType) {
+        // 获取 jdbcTemplate
         JdbcTemplate jdbcTemplate = SpringContextHolder.getBean(JdbcTemplate.class);
+        // 执行 sql
         int count = jdbcTemplate.update(sqlStr);
         // 清空缓存
-        cacheExecutor.clear(sqlStr);
+        if (Objects.nonNull(cacheExecutor)) {
+            cacheExecutor.clear(sqlStr);
+        }
+        if (returnType.equals(Long.class)) {
+            return Long.parseLong(String.valueOf(count));
+        }
         return count;
     }
 }
