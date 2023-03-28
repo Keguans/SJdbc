@@ -6,7 +6,7 @@
 
     <groupId>com.Keguans</groupId>
     <artifactId>SJdbc</artifactId>
-    <version>1.1</version>
+    <version>1.1.10</version>
 
     <parent>
         <groupId>org.springframework.boot</groupId>

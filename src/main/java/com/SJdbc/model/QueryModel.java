@@ -11,10 +11,7 @@ import com.SJdbc.util.JdbcUtil;
 import org.springframework.util.StringUtils;
 
 import java.lang.reflect.Field;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
 /**
  * sql 拼装类
@@ -25,6 +22,8 @@ public class QueryModel {
      * sql 语句
      */
     public final StringBuilder sql = new StringBuilder();
+
+    public final List<Object> params = new LinkedList<>();
 
     private Class<?> aClass;
 
@@ -175,8 +174,8 @@ public class QueryModel {
         sql.append(fieldName)
                 .append(" ")
                 .append(SqlCharacterEnum.EQUAL.getWord())
-                .append(" ")
-                .append(JdbcUtil.convert(val));
+                .append(" ?");
+        params.add(val);
         return this;
     }
 
@@ -195,7 +194,8 @@ public class QueryModel {
                 .append(" ")
                 .append(SqlEnum.LIKE)
                 .append(" ")
-                .append("\"%").append(val).append("%\"");
+                .append("CONCAT('%', ").append("?, ").append("'%')");
+        params.add(val);
         return this;
     }
 
@@ -213,7 +213,8 @@ public class QueryModel {
         sql.append(fieldName)
                 .append(" ")
                 .append(SqlEnum.LIKE)
-                .append(" ").append("\"%").append(val).append("\"");
+                .append(" ").append("CONCAT('%', ").append("?)");
+        params.add(val);
         return this;
     }
 
@@ -231,7 +232,8 @@ public class QueryModel {
         sql.append(fieldName)
                 .append(" ")
                 .append(SqlEnum.LIKE)
-                .append(" ").append("\"").append(val).append("%\"");
+                .append(" ").append("CONCAT(?, '%')");
+        params.add(val);
         return this;
     }
 
@@ -250,7 +252,10 @@ public class QueryModel {
         }
         String fieldName = ColumnUtil.getColumn(sf);
         sql.append(fieldName).append(" ").append(SqlEnum.IN).append(" (");
-        collection.forEach(obj -> sql.append(JdbcUtil.convert(obj)).append(", "));
+        collection.forEach(obj -> {
+            sql.append("?, ");
+            params.add(obj);
+        });
         sql.deleteCharAt(sql.length() - 1)
                 .deleteCharAt(sql.length() - 1)
                 .append(")");
@@ -273,7 +278,8 @@ public class QueryModel {
         String fieldName = ColumnUtil.getColumn(sf);
         sql.append(fieldName).append(" ").append(SqlEnum.IN).append(" (");
         for (Object o : obj) {
-            sql.append(JdbcUtil.convert(o)).append(", ");
+            sql.append("?, ");
+            params.add(o);
         }
         sql.deleteCharAt(sql.length() - 1)
                 .deleteCharAt(sql.length() - 1)
@@ -302,8 +308,8 @@ public class QueryModel {
      */
     public <T, R> QueryModel gt(JdbcFunction<T, R> sf, Object val) {
         String column = ColumnUtil.getColumn(sf);
-        sql.append(column).append(" ").append(SqlCharacterEnum.GREAT_THEN.getWord()).append(" ")
-                .append(JdbcUtil.convert(val));
+        sql.append(column).append(" ").append(SqlCharacterEnum.GREAT_THEN.getWord()).append(" ?");
+        params.add(val);
         return this;
     }
 
@@ -318,8 +324,8 @@ public class QueryModel {
      */
     public <T, R> QueryModel ge(JdbcFunction<T, R> sf, Object val) {
         String column = ColumnUtil.getColumn(sf);
-        sql.append(column).append(" ").append(SqlCharacterEnum.GREAT_THEN_AND_EQUAL.getWord()).append(" ")
-                .append(JdbcUtil.convert(val));
+        sql.append(column).append(" ").append(SqlCharacterEnum.GREAT_THEN_AND_EQUAL.getWord()).append(" ?");
+        params.add(val);
         return this;
     }
 
@@ -334,8 +340,8 @@ public class QueryModel {
      */
     public <T, R> QueryModel lt(JdbcFunction<T, R> sf, Object val) {
         String column = ColumnUtil.getColumn(sf);
-        sql.append(column).append(" ").append(SqlCharacterEnum.LESS_THEN.getWord()).append(" ")
-                .append(JdbcUtil.convert(val));
+        sql.append(column).append(" ").append(SqlCharacterEnum.LESS_THEN.getWord()).append(" ?");
+        params.add(val);
         return this;
     }
 
@@ -350,8 +356,8 @@ public class QueryModel {
      */
     public <T, R> QueryModel le(JdbcFunction<T, R> sf, Object val) {
         String column = ColumnUtil.getColumn(sf);
-        sql.append(column).append(" ").append(SqlCharacterEnum.LESS_THEN_AND_EQUAL.getWord()).append(" ")
-                .append(JdbcUtil.convert(val));
+        sql.append(column).append(" ").append(SqlCharacterEnum.LESS_THEN_AND_EQUAL.getWord()).append(" ");
+        params.add(val);
         return this;
     }
 
@@ -371,8 +377,8 @@ public class QueryModel {
                 .append(column)
                 .append(" ")
                 .append(SqlCharacterEnum.EQUAL.getWord())
-                .append(" ")
-                .append(JdbcUtil.convert(val));
+                .append(" ?");
+        params.add(val);
         return this;
     }
 
@@ -441,6 +447,7 @@ public class QueryModel {
      */
     public void clearQueryModel() {
         sql.setLength(0);
+        params.clear();
         this.aClass = null;
     }
 }

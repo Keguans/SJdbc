@@ -13,11 +13,11 @@ import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.PreparedStatementCreator;
-import org.springframework.jdbc.core.PreparedStatementCreatorFactory;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
 
 import java.lang.reflect.Field;
+import java.sql.PreparedStatement;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
@@ -86,10 +86,9 @@ public class JdbcUtil {
         // 拼装 sql 语句 -- 表名
         sql.append(" FROM ").append(tableData.getTableName());
         // 拼装 sql 语句 -- 条件
-        sql.append(" WHERE ").append(tableData.getKey()).append(" = ")
-                .append(convert(id));
+        sql.append(" WHERE ").append(tableData.getKey()).append(" = ?");
         // 执行 sql 语句
-        return jdbcTemplate.queryForObject(sql.toString(), new BeanPropertyRowMapper<>(aClass));
+        return jdbcTemplate.queryForObject(sql.toString(), new BeanPropertyRowMapper<>(aClass), id);
     }
 
     /**
@@ -99,7 +98,7 @@ public class JdbcUtil {
      * @return
      */
     public Long count(QueryModel queryModel) {
-        Long count = jdbcTemplate.queryForObject(queryModel.sql.toString(), Long.class);
+        Long count = jdbcTemplate.queryForObject(queryModel.sql.toString(), Long.class, queryModel.params.toArray());
         return Objects.isNull(count) || count == 0 ? 0 : count;
     }
 
@@ -114,7 +113,7 @@ public class JdbcUtil {
         String sql = queryModel.sql.toString();
         sql = sql + " " + SqlEnum.LIMIT + " 1";
         try {
-            return jdbcTemplate.queryForObject(sql, new BeanPropertyRowMapper<>(aClass));
+            return jdbcTemplate.queryForObject(sql, new BeanPropertyRowMapper<>(aClass), queryModel.params.toArray());
         } catch (EmptyResultDataAccessException e) {
             return null;
         }
@@ -128,7 +127,7 @@ public class JdbcUtil {
      * @return
      */
     public <T> List<T> getList(QueryModel queryModel, Class<T> aClass) {
-        return jdbcTemplate.query(queryModel.sql.toString(), new BeanPropertyRowMapper<>(aClass));
+        return jdbcTemplate.query(queryModel.sql.toString(), new BeanPropertyRowMapper<>(aClass), queryModel.params.toArray());
     }
 
     /**
@@ -166,14 +165,14 @@ public class JdbcUtil {
                 queryModel.sql.indexOf(SqlEnum.SELECT.getWord()) + SqlEnum.SELECT.getWord().length(),
                 queryModel.sql.indexOf(SqlEnum.FROM.getWord())
         );
-        String sql = queryModel.sql.toString().replaceFirst(substring, " " + SqlEnum.COUNT + "(1) ");
-        Long count = jdbcTemplate.queryForObject(sql, Long.class);
+        String sql = queryModel.sql.toString().replace(substring, " " + SqlEnum.COUNT + "(1) ");
+        Long count = jdbcTemplate.queryForObject(sql, Long.class, queryModel.params.toArray());
         if (Objects.isNull(count) || count == 0) {
             return new Paging<>(0L, new ArrayList<>(0));
         }
         int pageNum = (page.getPageNum() - 1) * page.getPageSize();
         sql = queryModel.sql + " " + SqlEnum.LIMIT + " " + pageNum + ", " + page.getPageSize();
-        List<T> list = jdbcTemplate.query(sql, new BeanPropertyRowMapper<>(aClass));
+        List<T> list = jdbcTemplate.query(sql, new BeanPropertyRowMapper<>(aClass), queryModel.params.toArray());
         return new Paging<>(count, list);
     }
 
@@ -212,13 +211,16 @@ public class JdbcUtil {
         }
         sql.deleteCharAt(sql.length() - 2).append(")").append(" VALUES (");
         // 拼装 sql 语句 -- 值
+        List<Object> params = new LinkedList<>();
         if (Objects.nonNull(entityKey)) {
-            sql.append(convert(entityKey)).append(", ");
+            params.add(entityKey);
+            sql.append("?, ");
         }
         for (String colum : columMap.keySet()) {
             Object data = dataMap.get(columMap.get(colum));
             if (Objects.nonNull(data)) {
-                sql.append(convert(data)).append(", ");
+                params.add(data);
+                sql.append("?, ");
             }
         }
         sql.deleteCharAt(sql.length() - 2).append(")");
@@ -235,9 +237,15 @@ public class JdbcUtil {
                         .replace("VALUES (", "VALUES (" + id + ", ");
             }
             KeyHolder generatedKeyHolder = new GeneratedKeyHolder();
-            PreparedStatementCreatorFactory factory = new PreparedStatementCreatorFactory(sqlStr);
-            factory.setReturnGeneratedKeys(true);
-            PreparedStatementCreator preparedStatementCreator = factory.newPreparedStatementCreator(new String[]{});
+            String finalSqlStr = sqlStr;
+            PreparedStatementCreator preparedStatementCreator = con -> {
+                PreparedStatement preparedStatement = con.prepareStatement(finalSqlStr, PreparedStatement.RETURN_GENERATED_KEYS);
+                for (int i = 1; i <= params.size() ; i++) {
+                    Object param = params.get(i - 1);
+                    preparedStatement.setObject(i, param);
+                }
+                return preparedStatement;
+            };
             count = jdbcTemplate.update(preparedStatementCreator, generatedKeyHolder);
             Field field = obj.getClass().getDeclaredField(tableData.getEntityKey());
             field.setAccessible(true);
@@ -280,11 +288,12 @@ public class JdbcUtil {
         sql.deleteCharAt(sql.length() - 1).deleteCharAt(sql.length() - 1).append(")");
         // 拼装 sql 语句 -- 值
         int count = 0;
-        sql.append(" VALUES");
+        sql.append(" VALUES ");
         try {
             List<Object> keyList = new ArrayList<>(list.size());
             // 拼装值
             Key key = list.get(0).getClass().getDeclaredField(tableDataList.get(0).getKey()).getAnnotation(Key.class);
+            List<Object> params = new LinkedList<>();
             for (TableData tableData : tableDataList) {
                 sql.append("(");
                 Map<String, Object> dataMap = tableData.getDataMap();
@@ -298,7 +307,12 @@ public class JdbcUtil {
                             keyList.add(o);
                         }
                     }
-                    sql.append(convert(o)).append(", ");
+                    if (Objects.nonNull(o)) {
+                        sql.append("?, ");
+                        params.add(o);
+                    } else {
+                        sql.append((String) null).append(", ");
+                    }
                 }
                 sql.deleteCharAt(sql.length() - 1).deleteCharAt(sql.length() - 1).append("), ");
             }
@@ -306,14 +320,18 @@ public class JdbcUtil {
             // 自增
             if (key.type().equals(IdTypeEnum.ID_AUTO)) {
                 KeyHolder generatedKeyHolder = new GeneratedKeyHolder();
-                PreparedStatementCreatorFactory factory = new PreparedStatementCreatorFactory(sql.toString());
-                factory.setReturnGeneratedKeys(true);
-                PreparedStatementCreator preparedStatementCreator = factory.newPreparedStatementCreator(new String[]{});
+                PreparedStatementCreator preparedStatementCreator = con -> {
+                    PreparedStatement preparedStatement = con.prepareStatement(sql.toString(), PreparedStatement.RETURN_GENERATED_KEYS);
+                    for (int i = 1; i <= params.size(); i++) {
+                        preparedStatement.setObject(i, params.get(i - 1));
+                    }
+                    return preparedStatement;
+                };
                 count = jdbcTemplate.update(preparedStatementCreator, generatedKeyHolder);
                 List<Map<String, Object>> keyHolderKeyList = generatedKeyHolder.getKeyList();
                 keyHolderKeyList.forEach(m -> m.keySet().forEach(k -> keyList.add(m.get(k))));
             } else {
-                count = jdbcTemplate.update(sql.toString());
+                count = jdbcTemplate.update(sql.toString(), params.toArray());
             }
             // id 赋值
             for (int i = 0; i < list.size(); i++) {
@@ -340,21 +358,22 @@ public class JdbcUtil {
         }
         tableData.getUpdateTime(obj);
         // 拼装 sql
+        List<Object> params = new LinkedList<>();
         StringBuilder sql = new StringBuilder();
         sql.append("UPDATE ").append(tableData.getTableName()).append(" SET ");
         for (String colum : tableData.getColumMap().keySet()) {
             Object data = tableData.getDataMap().get(tableData.getColumMap().get(colum));
-            if (Objects.isNull(data)) {
+            if (Objects.isNull(data) || colum.equals(tableData.getKey())) {
                 continue;
             }
-            sql.append(colum).append(" = ").append(convert(data)).append(", ");
+            sql.append(colum).append(" = ?, ");
+            params.add(data);
         }
         sql.deleteCharAt(sql.length() - 2);
         // 拼装 sql -- 主键
-        sql.append("WHERE ").append(tableData.getKey()).append(" = ");
-        Object id = tableData.getDataMap().get(tableData.getEntityKey());
-        sql.append(convert(id));
-        return jdbcTemplate.update(sql.toString());
+        sql.append("WHERE ").append(tableData.getKey()).append(" = ?");
+        params.add(tableData.getDataMap().get(tableData.getEntityKey()));
+        return jdbcTemplate.update(sql.toString(), params.toArray());
     }
 
     /**
@@ -394,9 +413,8 @@ public class JdbcUtil {
         }
         // 拼装 sql
         String sql = "DELETE FROM " + tableData.getTableName() +
-                " WHERE " + tableData.getKey() + " = " +
-                (id instanceof String ? "\"" + id + "\"" : id);
-        return jdbcTemplate.update(sql);
+                " WHERE " + tableData.getKey() + " = ?";
+        return jdbcTemplate.update(sql, id);
     }
 
     /**
