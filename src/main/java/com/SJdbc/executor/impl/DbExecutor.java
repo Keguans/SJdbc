@@ -1,8 +1,10 @@
 package com.SJdbc.executor.impl;
 
 import com.SJdbc.executor.cache.CacheExecutor;
+import com.SJdbc.proxy.JdbcProxy;
 
 import java.lang.reflect.Method;
+import java.util.HashMap;
 
 /**
  * 数据库执行器
@@ -16,15 +18,17 @@ public class DbExecutor implements CacheExecutor {
      * @param method
      * @return
      */
-    protected Object doGetData(String key, Method method) throws ClassNotFoundException {
+    protected Object doGetData(String key, Method method, Object... params) throws ClassNotFoundException {
         return null;
     }
 
     @Override
     public Object getData(Object key) {
-        DbExecutorKey dbExecutorKey = (DbExecutorKey) key;
+        HashMap map = (HashMap) key;
+        DbExecutorKey dbExecutorKey = (DbExecutorKey) map.get("DbExecutorKey");
+        JdbcProxy.SqlAndParam sqlAndParam = (JdbcProxy.SqlAndParam) map.get("sqlAndParam");
         try {
-            return this.doGetData(dbExecutorKey.getSql(), dbExecutorKey.method);
+            return this.doGetData(dbExecutorKey.sql, dbExecutorKey.method, sqlAndParam.getParams().toArray());
         } catch (Exception e) {
             throw new RuntimeException(e.getMessage());
         }

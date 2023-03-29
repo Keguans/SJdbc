@@ -9,7 +9,6 @@ import com.SJdbc.enums.SqlEnum;
 import com.SJdbc.executor.cache.CacheExecutor;
 import com.SJdbc.executor.cache.impl.DefaultCacheExecutor;
 import com.SJdbc.executor.impl.DbExecutor;
-import com.SJdbc.util.JdbcUtil;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -32,21 +31,25 @@ public class JdbcProxy extends DbExecutor implements InvocationHandler {
     @SuppressWarnings(value = "all")
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
         Sql sql = method.getAnnotation(Sql.class);
-        String sqlStr = sql.type() == 1 ? this.typeOne(sql.sql(), args) : this.typeTwo(sql.sql(), method, args);
+        SqlAndParam sqlAndParam = sql.type() == 1 ? this.typeOne(sql.sql(), args) : this.typeTwo(sql.sql(), method, args);
+        String sqlStr = sqlAndParam.getSql();
         // 查询方法
         if (sqlStr.toUpperCase().startsWith(SqlEnum.SELECT.getWord())) {
             Cache annotation = method.getDeclaringClass().getAnnotation(Cache.class);
             CacheExecutor executor = this.setCacheExecutor(annotation);
             // 如果未设置缓存，查询数据库
             if (executor instanceof DbExecutor) {
-                return executor.getData(new DbExecutorKey(sqlStr, method));
+                Map<String, Object> map = new HashMap<>(4);
+                map.put("sqlAndParam", sqlAndParam);
+                map.put("DbExecutorKey", new DbExecutorKey(sqlStr, method));
+                return executor.getData(map);
             }
             // 查询缓存
-            String key = this.getKey(sqlStr, method);
+            String key = this.getKey(sqlStr, method, sqlAndParam.getParams());
             Object data = executor.getData(key);
             if (Objects.isNull(data)) {
                 // 缓存没有，查询数据库
-                data = this.doGetData(sqlStr, method);
+                data = this.doGetData(sqlStr, method, sqlAndParam.getParams().toArray());
                 executor.setData(key, data);
             }
             return data;
@@ -86,8 +89,8 @@ public class JdbcProxy extends DbExecutor implements InvocationHandler {
      * @param method
      * @return
      */
-    private String getKey(String sqlStr, Method method) {
-        return MD5.create().digestHex(method.getDeclaringClass() + ":" + method.getName() + ":" + method.getReturnType() + ":" + sqlStr);
+    private String getKey(String sqlStr, Method method, List<Object> params) {
+        return MD5.create().digestHex(method.getDeclaringClass() + ":" + method.getName() + ":" + method.getReturnType() + ":" + sqlStr + ":" + params.toString());
     }
 
     /**
@@ -96,18 +99,24 @@ public class JdbcProxy extends DbExecutor implements InvocationHandler {
      * @param args
      * @return
      */
-    public String typeOne(String sqlStr, Object[] args) throws Throwable {
+    public SqlAndParam typeOne(String sqlStr, Object[] args) throws Throwable {
+        List<Object> paramsList = new LinkedList<>();
         for (int i = 1; i <= args.length; i++) {
             Object arg = args[i - 1];
-            Object convert = JdbcUtil.convert(arg);
-            if (convert instanceof Collection) {
-                convert = objectMapper.writeValueAsString(convert)
-                        .replace("[", "(")
-                        .replace("]", ")");
+            if (arg instanceof Collection) {
+                String arrayStr = "";
+                for (Object o : ((Collection) arg)) {
+                    paramsList.add(o);
+                    arrayStr = arrayStr + "?, ";
+                }
+                arrayStr = arrayStr.substring(0, arrayStr.length() - 2);
+                sqlStr = sqlStr.replace("?" + i, "(" + arrayStr + ")");
+            } else {
+                paramsList.add(arg);
+                sqlStr = sqlStr.replace("?" + i, "?");
             }
-            sqlStr = sqlStr.replace("?" + i, String.valueOf(convert));
         }
-        return sqlStr;
+        return new SqlAndParam(sqlStr, paramsList);
     }
 
     /**
@@ -119,8 +128,9 @@ public class JdbcProxy extends DbExecutor implements InvocationHandler {
      * @return
      * @throws Exception
      */
-    public String typeTwo(String sqlStr, Method method, Object[] args) throws Exception {
+    public SqlAndParam typeTwo(String sqlStr, Method method, Object[] args) throws Exception {
         sqlStr = sqlStr.trim();
+        List<Object> paramsList = new LinkedList<>();
         for (int i = 0; i < method.getParameterTypes().length; i++) {
             Annotation[] parameterAnnotation = method.getParameterAnnotations()[i];
             String param = parameterAnnotation.length == 0 ? method.getParameters()[i].getName() : ((Param) parameterAnnotation[0]).name();
@@ -135,16 +145,41 @@ public class JdbcProxy extends DbExecutor implements InvocationHandler {
                     substring = params.substring(0, params.indexOf(" "));
                 }
                 Object obj = map.get(substring.split("\\.")[1]);
-                Object convert = JdbcUtil.convert(obj);
-                if (convert instanceof Collection) {
-                    convert = objectMapper.writeValueAsString(convert)
-                            .replace("[", "(")
-                            .replace("]", ")");
+                if (obj instanceof Collection) {
+                    String arrayStr = "";
+                    for (Object o : ((Collection) obj)) {
+                        paramsList.add(o);
+                        arrayStr = arrayStr + "?, ";
+                    }
+                    arrayStr = arrayStr.substring(0, arrayStr.length() - 2);
+                    sqlStr = sqlStr.replace(substring, "(" + arrayStr + ")");
+                } else {
+                    paramsList.add(obj);
+                    sqlStr = sqlStr.replace(substring, "?");
                 }
-                sqlStr = sqlStr.replace(substring, String.valueOf(convert));
             }
         }
-        return sqlStr;
+        return new SqlAndParam(sqlStr, paramsList);
+    }
+
+    public static class SqlAndParam {
+
+        public SqlAndParam(String sql, List<Object> params) {
+            this.sql = sql;
+            this.params = params;
+        }
+
+        private final String sql;
+
+        private final List<Object> params;
+
+        public String getSql() {
+            return sql;
+        }
+
+        public List<Object> getParams() {
+            return params;
+        }
     }
 
     /**
@@ -152,22 +187,23 @@ public class JdbcProxy extends DbExecutor implements InvocationHandler {
      *
      * @param sqlStr
      * @param method
+     * @param params
      * @return
      */
     @Override
-    protected Object doGetData(String sqlStr, Method method) throws ClassNotFoundException {
+    protected Object doGetData(String sqlStr, Method method, Object... params) throws ClassNotFoundException {
         JdbcTemplate jdbcTemplate = SpringContextHolder.getBean(JdbcTemplate.class);
         if (List.class.isAssignableFrom(method.getReturnType())) {
             Type genericReturnType = method.getGenericReturnType();
             String typeName = genericReturnType.getTypeName();
             Class<?> aClass = Class.forName(typeName.substring(typeName.indexOf("<") + 1, typeName.indexOf(">")));
-            return jdbcTemplate.query(sqlStr, new BeanPropertyRowMapper<>(aClass));
+            return jdbcTemplate.query(sqlStr, new BeanPropertyRowMapper<>(aClass), params);
         }
         try {
             if (Map.class.isAssignableFrom(method.getReturnType())) {
-                return jdbcTemplate.queryForMap(sqlStr);
+                return jdbcTemplate.queryForMap(sqlStr, params);
             }
-            return jdbcTemplate.queryForObject(sqlStr, new BeanPropertyRowMapper<>(method.getReturnType()));
+            return jdbcTemplate.queryForObject(sqlStr, new BeanPropertyRowMapper<>(method.getReturnType()), params);
         } catch (EmptyResultDataAccessException e) {
             return null;
         }
@@ -177,13 +213,15 @@ public class JdbcProxy extends DbExecutor implements InvocationHandler {
      * 执行非查询 sql
      *
      * @param sqlStr
+     * @param returnType
+     * @param params
      * @return
      */
-    private Object doUpdate(String sqlStr, Class<?> returnType) {
+    private Object doUpdate(String sqlStr, Class<?> returnType, Object... params) {
         // 获取 jdbcTemplate
         JdbcTemplate jdbcTemplate = SpringContextHolder.getBean(JdbcTemplate.class);
         // 执行 sql
-        int count = jdbcTemplate.update(sqlStr);
+        int count = jdbcTemplate.update(sqlStr, params);
         // 清空缓存
         if (Objects.nonNull(cacheExecutor)) {
             cacheExecutor.clear(sqlStr);
