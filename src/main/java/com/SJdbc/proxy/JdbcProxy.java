@@ -1,5 +1,6 @@
 package com.SJdbc.proxy;
 
+import cn.hutool.core.util.ClassUtil;
 import cn.hutool.crypto.digest.MD5;
 import com.SJdbc.annotation.Cache;
 import com.SJdbc.annotation.Param;
@@ -101,6 +102,9 @@ public class JdbcProxy extends DbExecutor implements InvocationHandler {
      */
     public SqlAndParam typeOne(String sqlStr, Object[] args) throws Throwable {
         List<Object> paramsList = new LinkedList<>();
+        if (Objects.isNull(args)) {
+            return new SqlAndParam(sqlStr, paramsList);
+        }
         for (int i = 1; i <= args.length; i++) {
             Object arg = args[i - 1];
             if (arg instanceof Collection) {
@@ -131,6 +135,9 @@ public class JdbcProxy extends DbExecutor implements InvocationHandler {
     public SqlAndParam typeTwo(String sqlStr, Method method, Object[] args) throws Exception {
         sqlStr = sqlStr.trim();
         List<Object> paramsList = new LinkedList<>();
+        if (Objects.isNull(args)) {
+            return new SqlAndParam(sqlStr, paramsList);
+        }
         for (int i = 0; i < method.getParameterTypes().length; i++) {
             Annotation[] parameterAnnotation = method.getParameterAnnotations()[i];
             String param = parameterAnnotation.length == 0 ? method.getParameters()[i].getName() : ((Param) parameterAnnotation[0]).name();
@@ -202,6 +209,9 @@ public class JdbcProxy extends DbExecutor implements InvocationHandler {
         try {
             if (Map.class.isAssignableFrom(method.getReturnType())) {
                 return jdbcTemplate.queryForMap(sqlStr, params);
+            }
+            if (ClassUtil.isBasicType(method.getReturnType()) || Arrays.asList(String.class, Date.class).contains(method.getReturnType())) {
+                return jdbcTemplate.queryForObject(sqlStr, method.getReturnType(), params);
             }
             return jdbcTemplate.queryForObject(sqlStr, new BeanPropertyRowMapper<>(method.getReturnType()), params);
         } catch (EmptyResultDataAccessException e) {

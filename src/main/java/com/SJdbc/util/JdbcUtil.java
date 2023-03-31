@@ -18,7 +18,6 @@ import org.springframework.jdbc.support.KeyHolder;
 
 import java.lang.reflect.Field;
 import java.sql.PreparedStatement;
-import java.text.SimpleDateFormat;
 import java.util.*;
 
 public class JdbcUtil {
@@ -415,29 +414,5 @@ public class JdbcUtil {
         String sql = "DELETE FROM " + tableData.getTableName() +
                 " WHERE " + tableData.getKey() + " = ?";
         return jdbcTemplate.update(sql, id);
-    }
-
-    /**
-     * 统一字段处理
-     *
-     * @param obj
-     * @return
-     */
-    public static Object convert(Object obj) {
-        if (Objects.isNull(obj)) {
-            return null;
-        }
-        // 字符串
-        if (obj instanceof String) {
-            String str = (String) obj;
-            str = str.replace("\"", "\\\"");
-            return  "\"" + str + "\"";
-        }
-        // 日期
-        if (obj instanceof Date) {
-            obj = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format((Date) obj);
-            return "\"" + obj + "\"";
-        }
-        return obj;
     }
 }
