@@ -87,7 +87,11 @@ public class JdbcUtil {
         // 拼装 sql 语句 -- 条件
         sql.append(" WHERE ").append(tableData.getKey()).append(" = ?");
         // 执行 sql 语句
-        return jdbcTemplate.queryForObject(sql.toString(), new BeanPropertyRowMapper<>(aClass), id);
+        try {
+            return jdbcTemplate.queryForObject(sql.toString(), new BeanPropertyRowMapper<>(aClass), id);
+        } catch (EmptyResultDataAccessException e) {
+            return null;
+        }
     }
 
     /**
