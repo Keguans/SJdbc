@@ -32,7 +32,7 @@ public class JdbcProxy extends DbExecutor implements InvocationHandler {
     @SuppressWarnings(value = "all")
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
         Sql sql = method.getAnnotation(Sql.class);
-        SqlAndParam sqlAndParam = sql.type() == 1 ? this.typeOne(sql.sql(), args) : this.typeTwo(sql.sql(), method, args);
+        SqlAndParam sqlAndParam = !sql.useParam() ? this.typeOne(sql.sql(), args) : this.typeTwo(sql.sql(), method, args);
         String sqlStr = sqlAndParam.getSql();
         // 查询方法
         if (sqlStr.toUpperCase().startsWith(SqlEnum.SELECT.getWord())) {
@@ -56,7 +56,7 @@ public class JdbcProxy extends DbExecutor implements InvocationHandler {
             return data;
         }
         // 非查询 sql
-        return this.doUpdate(sqlStr, method.getReturnType());
+        return this.doUpdate(sqlStr, method.getReturnType(), sqlAndParam.getParams().toArray());
     }
 
     /**
@@ -105,21 +105,38 @@ public class JdbcProxy extends DbExecutor implements InvocationHandler {
         if (Objects.isNull(args)) {
             return new SqlAndParam(sqlStr, paramsList);
         }
-        for (int i = 1; i <= args.length; i++) {
-            Object arg = args[i - 1];
-            if (arg instanceof Collection) {
-                String arrayStr = "";
-                for (Object o : ((Collection) arg)) {
-                    paramsList.add(o);
-                    arrayStr = arrayStr + "?, ";
-                }
-                arrayStr = arrayStr.substring(0, arrayStr.length() - 2);
-                sqlStr = sqlStr.replace("?" + i, "(" + arrayStr + ")");
+        while (true) {
+            int indexOf = sqlStr.indexOf("?");
+            if (indexOf <= 0) {
+                break;
+            }
+            String substring = sqlStr.substring(indexOf);
+            String num;
+            if (!substring.contains(" ")) {
+                num = substring.substring(1);
             } else {
-                paramsList.add(arg);
-                sqlStr = sqlStr.replace("?" + i, "?");
+                num = substring.substring(1, substring.indexOf(" "));
+            }
+            Object arg = args[Integer.parseInt(num) - 1];
+            StringBuilder seat = new StringBuilder("^~");
+            if (arg instanceof Collection) {
+                Collection c = (Collection) arg;
+                paramsList.addAll(c);
+                seat = new StringBuilder("(");
+                for (int i = 0; i < c.size(); i++) {
+                    seat.append("^~, ");
+                }
+                seat = new StringBuilder(seat.substring(0, seat.length() - 2) + ")");
+            } else {
+                paramsList.add(args[Integer.parseInt(num) - 1]);
+            }
+            if (!substring.contains(" ")) {
+                sqlStr = sqlStr.substring(0, indexOf) + seat;
+            } else {
+                sqlStr = sqlStr.substring(0, indexOf) + seat + substring.substring(substring.indexOf(" "));
             }
         }
+        sqlStr = sqlStr.replace("^~", "?");
         return new SqlAndParam(sqlStr, paramsList);
     }
 
@@ -138,34 +155,47 @@ public class JdbcProxy extends DbExecutor implements InvocationHandler {
         if (Objects.isNull(args)) {
             return new SqlAndParam(sqlStr, paramsList);
         }
+        Map<String, Object> paramMap = new HashMap<>();
         for (int i = 0; i < method.getParameterTypes().length; i++) {
             Annotation[] parameterAnnotation = method.getParameterAnnotations()[i];
             String param = parameterAnnotation.length == 0 ? method.getParameters()[i].getName() : ((Param) parameterAnnotation[0]).name();
-            Object arg = args[i];
-            Map<String, Object> map = objectMapper.readValue(objectMapper.writeValueAsString(arg), new TypeReference<HashMap<String, Object>>() {});
-            while (sqlStr.contains(param)) {
-                String params = sqlStr.substring(sqlStr.indexOf(param));
-                String substring;
-                if (!params.contains(" ")) {
-                    substring = params;
-                } else {
-                    substring = params.substring(0, params.indexOf(" "));
+            Map<String, Object> stringObjectHashMap = objectMapper.readValue(objectMapper.writeValueAsString(args[i]), new TypeReference<HashMap<String, Object>>() {});
+            paramMap.put(param, stringObjectHashMap);
+        }
+        while (true) {
+            int indexOf = sqlStr.indexOf(".");
+            if (indexOf <= 0) {
+                break;
+            }
+            String param = sqlStr.substring(sqlStr.substring(0, indexOf).lastIndexOf(" ") + 1, indexOf);
+            Map paramObj = (HashMap) paramMap.get(param);
+            String val;
+            if (!sqlStr.substring(indexOf).contains(" ")) {
+                val = sqlStr.substring(indexOf + 1);
+            } else {
+                val = sqlStr.substring(indexOf + 1, indexOf + sqlStr.substring(indexOf).indexOf(" "));
+            }
+            Object o = paramObj.get(val);
+            StringBuilder seat = new StringBuilder("^~");
+            if (o instanceof Collection) {
+                seat = new StringBuilder("(");
+                Collection collection = (Collection) o;
+                for (int i = 0; i < collection.size(); i++) {
+                    seat.append("^~, ");
                 }
-                Object obj = map.get(substring.split("\\.")[1]);
-                if (obj instanceof Collection) {
-                    String arrayStr = "";
-                    for (Object o : ((Collection) obj)) {
-                        paramsList.add(o);
-                        arrayStr = arrayStr + "?, ";
-                    }
-                    arrayStr = arrayStr.substring(0, arrayStr.length() - 2);
-                    sqlStr = sqlStr.replace(substring, "(" + arrayStr + ")");
-                } else {
-                    paramsList.add(obj);
-                    sqlStr = sqlStr.replace(substring, "?");
-                }
+                seat = new StringBuilder(seat.substring(0, seat.length() - 2) + ")");
+                paramsList.addAll(collection);
+            } else {
+                paramsList.add(o);
+            }
+            String substring = sqlStr.substring(indexOf);
+            if (!substring.contains(" ")) {
+                sqlStr = sqlStr.substring(0, indexOf - param.length()) + seat;
+            } else {
+                sqlStr = sqlStr.substring(0, indexOf - param.length()) + seat + substring.substring(substring.indexOf(" "));
             }
         }
+        sqlStr = sqlStr.replace("^~", "?");
         return new SqlAndParam(sqlStr, paramsList);
     }
 

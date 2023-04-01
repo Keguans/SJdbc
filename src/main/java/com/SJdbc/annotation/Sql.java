@@ -11,5 +11,5 @@ public @interface Sql {
 
     String sql();
 
-    int type() default 1;
+    boolean useParam() default false;
 }
