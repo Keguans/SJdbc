@@ -7,7 +7,6 @@ import com.SJdbc.enums.SqlCharacterEnum;
 import com.SJdbc.enums.SqlEnum;
 import com.SJdbc.function.JdbcFunction;
 import com.SJdbc.util.ColumnUtil;
-import com.SJdbc.util.JdbcUtil;
 import org.springframework.util.StringUtils;
 
 import java.lang.reflect.Field;
@@ -364,21 +363,10 @@ public class QueryModel {
     /**
      * set
      *
-     * @param sf
-     * @param val
      * @return
-     * @param <T>
-     * @param <R>
      */
-    public <T, R> QueryModel set(JdbcFunction<T, R> sf, Object val) {
-        String column = ColumnUtil.getColumn(sf);
-        sql.append(SqlEnum.SET)
-                .append(" ")
-                .append(column)
-                .append(" ")
-                .append(SqlCharacterEnum.EQUAL.getWord())
-                .append(" ?");
-        params.add(val);
+    public QueryModel set() {
+        sql.append(SqlEnum.SET).append(" ");
         return this;
     }
 
@@ -431,7 +419,7 @@ public class QueryModel {
      * @return
      */
     public QueryModel character(SqlCharacterEnum character) {
-        sql.append(character.getWord());
+        sql.append(character.getWord()).append(" ");
         return this;
     }
 

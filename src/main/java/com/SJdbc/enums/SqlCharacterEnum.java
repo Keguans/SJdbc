@@ -11,7 +11,8 @@ public enum SqlCharacterEnum {
     GREAT_THEN(">"),
     LESS_THEN("<"),
     GREAT_THEN_AND_EQUAL(">="),
-    LESS_THEN_AND_EQUAL("<=");
+    LESS_THEN_AND_EQUAL("<="),
+    COMMA(",");
 
     private final String word;
 
