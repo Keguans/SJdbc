@@ -117,7 +117,7 @@ public class JdbcProxy extends DbExecutor implements InvocationHandler {
             } else {
                 num = substring.substring(1, substring.indexOf(" "));
             }
-            Object arg = args[Integer.parseInt(num) - 1];
+            Object arg = args[Integer.parseInt(num.replace(",", "")) - 1];
             StringBuilder seat = new StringBuilder("^~");
             if (arg instanceof Collection) {
                 Collection c = (Collection) arg;
@@ -128,12 +128,12 @@ public class JdbcProxy extends DbExecutor implements InvocationHandler {
                 }
                 seat = new StringBuilder(seat.substring(0, seat.length() - 2) + ")");
             } else {
-                paramsList.add(args[Integer.parseInt(num) - 1]);
+                paramsList.add(arg);
             }
             if (!substring.contains(" ")) {
                 sqlStr = sqlStr.substring(0, indexOf) + seat;
             } else {
-                sqlStr = sqlStr.substring(0, indexOf) + seat + substring.substring(substring.indexOf(" "));
+                sqlStr = sqlStr.substring(0, indexOf) + seat + substring.substring(substring.indexOf(num.contains(",") ? "," : " "));
             }
         }
         sqlStr = sqlStr.replace("^~", "?");
@@ -175,7 +175,7 @@ public class JdbcProxy extends DbExecutor implements InvocationHandler {
             } else {
                 val = sqlStr.substring(indexOf + 1, indexOf + sqlStr.substring(indexOf).indexOf(" "));
             }
-            Object o = paramObj.get(val);
+            Object o = paramObj.get(val.replace(",", ""));
             StringBuilder seat = new StringBuilder("^~");
             if (o instanceof Collection) {
                 seat = new StringBuilder("(");
@@ -192,7 +192,7 @@ public class JdbcProxy extends DbExecutor implements InvocationHandler {
             if (!substring.contains(" ")) {
                 sqlStr = sqlStr.substring(0, indexOf - param.length()) + seat;
             } else {
-                sqlStr = sqlStr.substring(0, indexOf - param.length()) + seat + substring.substring(substring.indexOf(" "));
+                sqlStr = sqlStr.substring(0, indexOf - param.length()) + seat + substring.substring(substring.indexOf(val.contains(",") ? "," : " "));
             }
         }
         sqlStr = sqlStr.replace("^~", "?");
