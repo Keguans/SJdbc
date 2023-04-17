@@ -9,7 +9,7 @@
   
 问：那这破玩意怎么用？  
 答：（面部肌肉微微颤抖）好问题！  
-首先把依赖下载一下：链接: https://pan.baidu.com/s/1cd8DhZXDQbZTl3AVE4d7Ow?pwd=1234
+首先把依赖下载一下：链接: https://pan.baidu.com/s/1XnFBA4-5Is15T6g_dXLlOg?pwd=1234
 导入到你的项目中。  
 你需要配置一下 JdbcTemplate
 <h1> 配置 JdbcUtil </h1>
@@ -122,13 +122,13 @@
       /**
        * 默认方式，sql 中的 ?1 指的就是第一个入参
        */
-      @Sql(sql = "SELECT * FROM t_user WHERE username = ?1", type = 1)
+      @Sql(sql = "SELECT * FROM t_user WHERE username = ?1")
       List<UserEntity> getListByUsername(String username);
  
       /**
-       * 另一种方式，type 不为 1 的时候，可以传对象作为入参
+       * 另一种方式，useParam 为 true 的时候，可以传对象作为入参
        */
-      @Sql(sql = "SELECT * FROM t_user WHERE username = param.username", type = 2)
+      @Sql(sql = "SELECT * FROM t_user WHERE username = param.username", useParam = true)
       List<UserEntity> getListByUsernameType2(@Param(name = "param") UserEntity userEntity);
 问：QueryModel 支持联表查询吗？  
 答：臣妾做不到啊！（QueryModel 是考虑作为单表应用的。本身联表查询是不被推荐的，理由我能找出几十条。但如果不得不联表查询，那么使用第二中自定义 mapper 的查询方式吧）  
