@@ -301,6 +301,7 @@ public class JdbcUtil {
                 sql.append("(");
                 Map<String, Object> dataMap = tableData.getDataMap();
                 for (String columKey : columMap.keySet()) {
+                    columKey = columMap.get(columKey);
                     Object o = dataMap.get(columKey);
                     if (columKey.equals(tableData.getKey())) {
                         // 自动生成主键
