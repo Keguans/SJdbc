@@ -380,6 +380,19 @@ public class JdbcUtil {
         return jdbcTemplate.update(sql.toString(), params.toArray());
     }
 
+     /**
+     * 条件更新
+     *
+     * @param queryModel queryModel
+     * @return int
+     */
+    public int update(QueryModel queryModel) {
+        if (!queryModel.sql.toString().startsWith(SqlEnum.UPDATE.toString())) {
+            throw new RuntimeException("this is not UPDATE Sql");
+        }
+        return this.jdbcTemplate.update(queryModel.sql.toString(), queryModel.params.toArray());
+    }
+
     /**
      * 获取 table 信息
      *
@@ -419,5 +432,18 @@ public class JdbcUtil {
         String sql = "DELETE FROM " + tableData.getTableName() +
                 " WHERE " + tableData.getKey() + " = ?";
         return jdbcTemplate.update(sql, id);
+    }
+
+    /**
+     * 条件删除
+     *
+     * @param queryModel queryModel
+     * @return int
+     */
+    public int delete(QueryModel queryModel) {
+        if (!queryModel.sql.toString().startsWith(SqlEnum.DELETE.toString())) {
+            throw new RuntimeException("this is not DELETE Sql");
+        }
+        return this.jdbcTemplate.update(queryModel.sql.toString(), queryModel.params.toArray());
     }
 }
